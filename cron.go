@@ -29,10 +29,17 @@ package scheduler
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// regular expressions for parsing cron syntax
+var reNumberOnly = regexp.MustCompile(`^(\d+)$`) // matches numbers starting at the beginning of string
+var reNumberRange = regexp.MustCompile(`^(\d+)-(\d+)$`)
+var reStarSlash = regexp.MustCompile(`^\*/(\d+)$`)
+var reRangeSlash = regexp.MustCompile(`^(\d+)-(\d+)/(\d+)$`)
 
 type CronTime struct {
 	Sec, Min, Hour, Day, Month, Weekday string
@@ -122,29 +129,40 @@ func validMatch(cron string, time int) (bool, error) {
 		case part == "*":
 			return true, nil // matches all times so no need to check
 
-		case strings.HasPrefix(part, "*/"):
-			num, err := strconv.Atoi(strings.TrimLeft(part, "*/"))
-			if err != nil {
-				return false, errors.New("Cron syntax error */ must be followed by a number")
-			}
+		case reStarSlash.MatchString(part):
+			matches := reStarSlash.FindStringSubmatch(part)
+			num, _ := strconv.Atoi(matches[1])
 			if time%num == 0 {
 				return true, nil
 			}
 
-		case strings.Contains(part, "-"):
-			AB := strings.SplitN(part, "-", 2)
-			a, err := strconv.Atoi(AB[0])
-			if err != nil {
-				return false, errors.New("Expected number to the left of \"-\"")
+		case reRangeSlash.MatchString(part):
+			matches := reRangeSlash.FindStringSubmatch(part)
+			beginRange, _ := strconv.Atoi(matches[1]) // Using regular expressions means Atoi will work
+			endRange, _ := strconv.Atoi(matches[2])
+			mod, _ := strconv.Atoi(matches[3])
+			if beginRange >= endRange {
+				return false, errors.New("When using A-B/C, A must be less than B in cron syntax string")
 			}
-			b, err := strconv.Atoi(AB[1])
-			if err != nil {
-				return false, errors.New("Expected number to the right of \"-\"")
+			if time >= beginRange && time <= endRange && (time%mod) == 0 {
+				return true, nil
 			}
+
+		case reNumberRange.MatchString(part):
+			matches := reNumberRange.FindStringSubmatch(part)
+			a, _ := strconv.Atoi(matches[1]) //Can ignore the error since thr regular
+			b, _ := strconv.Atoi(matches[2]) // expression already verified the number
 			if a >= b {
-				return false, errors.New("When using A-B, A must be less than B")
+				return false, errors.New("When using A-B, A must be less than B in cron syntax string")
 			}
 			if time >= a && time <= b {
+				return true, nil
+			}
+
+		case reNumberOnly.MatchString(part):
+			matches := reNumberOnly.FindStringSubmatch(part)
+			num, _ := strconv.Atoi(matches[1])
+			if num == time {
 				return true, nil
 			}
 		}

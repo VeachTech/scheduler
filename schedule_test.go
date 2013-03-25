@@ -29,7 +29,6 @@ package scheduler
 
 import (
 	"testing"
-	"time"
 )
 
 func TestID(t *testing.T) {
@@ -50,29 +49,30 @@ func TestID(t *testing.T) {
 	}
 }
 
-func TestCron(t *testing.T) {
-	check, err := validMatch("*/2", int(time.Month(1))-1)
-	if !check || err != nil {
-		t.Errorf("validMonth(\"*/2\", time.Month(1)) resulted in %v with error %v", check, err)
-	}
+var cronTests = []struct {
+	cronStr string
+	time    int
+	result  bool
+	err     error
+}{
+	{"*/2", 0, true, nil},
+	{"*/2", 6, true, nil},
+	{"*/3", 3, true, nil},
+	{"*/3", 6, true, nil},
+	{"1-3", 2, true, nil},
+	{"1-3", 3, true, nil},
+	{"1-3/1", 2, true, nil},
+	{"0-5/3", 3, true, nil},
+	{"0-5/3", 6, false, nil},
+	{"1,3,4", 3, true, nil},
+}
 
-	check, err = validMatch("*/2", int(time.Month(7))-1)
-	if !check || err != nil {
-		t.Errorf("validMonth(\"*/2\", time.Month(7)) resulted in %v with error %v", check, err)
-	}
-
-	check, err = validMatch("*/3", int(time.Month(4))-1)
-	if !check || err != nil {
-		t.Errorf("validMonth(\"*/3\", time.Month(4)) resulted in %v with error %v", check, err)
-	}
-
-	check, err = validMatch("*/3", int(time.Month(3))-1)
-	if check || err != nil {
-		t.Errorf("validMonth(\"*/3\", time.Month(3)) resulted in %v with error %v", check, err)
-	}
-
-	check, err = validMatch("1-3", int(time.Month(3))-1)
-	if !check || err != nil {
-		t.Errorf("validMonth(\"1-3\", time.Month(3)) resulted in %v with error %v", check, err)
+func TestValidMatch(t *testing.T) {
+	for _, ct := range cronTests {
+		check, err := validMatch(ct.cronStr, ct.time)
+		if check != ct.result || err != ct.err {
+			t.Errorf("%s with time %d, expected result %v with error %v, got result %v with error %v",
+				ct.cronStr, ct.time, ct.result, ct.err, check, err)
+		}
 	}
 }
