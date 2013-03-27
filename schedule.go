@@ -31,23 +31,30 @@ import (
 	"time"
 )
 
+// ID type you can drop into a struct to fulfill the GetID()
+// method of the Job interface
 type ID uint
 
+// Any object that implements this interface can be added to the scheduler
 type Job interface {
 	NextRunTime(time.Time) time.Time
 	Run()
 	GetID() uint
 }
 
+// This is the struct that allows you to communicate with the underlying
+// scheduler. With it you can Add, Update, or Remove a Job aswell as shutting down the scheduler
 type Scheduler struct {
 	addOrUpdate chan Job
 	remove      chan int
 }
 
+// Matches the GetID function of the Job interface, all it does is return the underlying uint
 func (id *ID) GetID() uint {
 	return uint(*id)
 }
 
+// You MUST use this to create a new Scheduler
 func New() *Scheduler {
 	newSched := Scheduler{addOrUpdate: make(chan Job, 10), remove: make(chan int, 5)}
 	// Create worker
@@ -55,6 +62,7 @@ func New() *Scheduler {
 	return &newSched
 }
 
+// Will sleep/loop constantly, add/update/remove/execute jobs and finish when addOrUpdate channel closes
 func startScheduleWorker(addOrUpdate <-chan Job, remove <-chan int) {
 
 }

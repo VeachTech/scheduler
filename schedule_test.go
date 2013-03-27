@@ -53,26 +53,26 @@ var cronTests = []struct {
 	cronStr string
 	time    int
 	result  bool
-	err     error
 }{
-	{"*/2", 0, true, nil},
-	{"*/2", 6, true, nil},
-	{"*/3", 3, true, nil},
-	{"*/3", 6, true, nil},
-	{"1-3", 2, true, nil},
-	{"1-3", 3, true, nil},
-	{"1-3/1", 2, true, nil},
-	{"0-5/3", 3, true, nil},
-	{"0-5/3", 6, false, nil},
-	{"1,3,4", 3, true, nil},
+	{"*/2", 0, true},
+	{"*/2", 6, true},
+	{"*/3", 3, true},
+	{"*/3", 6, true},
+	{"1-3", 2, true},
+	{"1-3", 3, true},
+	{"1-3/1", 2, true},
+	{"0-5/3", 3, true},
+	{"0-5/3", 6, false},
+	{"1,3,4", 3, true},
+	{"1,3,4", 5, false},
 }
 
-func TestValidMatch(t *testing.T) {
+func TestisMatch(t *testing.T) {
 	for _, ct := range cronTests {
-		check, err := validMatch(ct.cronStr, ct.time)
-		if check != ct.result || err != ct.err {
-			t.Errorf("%s with time %d, expected result %v with error %v, got result %v with error %v",
-				ct.cronStr, ct.time, ct.result, ct.err, check, err)
+		check := hourMinuteSecondIsMatch(ct.cronStr, ct.time)
+		if check != ct.result {
+			t.Errorf("%s with time %d, expected result %v, got result %v",
+				ct.cronStr, ct.time, ct.result, check)
 		}
 	}
 }
