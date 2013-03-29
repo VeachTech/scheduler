@@ -28,6 +28,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package scheduler
 
 import (
+	"sort"
 	"time"
 )
 
@@ -46,7 +47,7 @@ type Job interface {
 // scheduler. With it you can Add, Update, or Remove a Job aswell as shutting down the scheduler
 type Scheduler struct {
 	addOrUpdate chan Job
-	remove      chan int
+	remove      chan uint
 }
 
 // Matches the GetID function of the Job interface, all it does is return the underlying uint
@@ -55,14 +56,94 @@ func (id *ID) GetID() uint {
 }
 
 // You MUST use this to create a new Scheduler
-func New() *Scheduler {
-	newSched := Scheduler{addOrUpdate: make(chan Job, 10), remove: make(chan int, 5)}
+func New(buffered bool) *Scheduler {
+	var newSched *Scheduler
+	if buffered {
+		newSched = &Scheduler{addOrUpdate: make(chan Job, 10), remove: make(chan uint, 5)}
+	} else {
+		newSched = &Scheduler{addOrUpdate: make(chan Job), remove: make(chan uint)}
+	}
 	// Create worker
-	go startScheduleWorker(newSched.addOrUpdate, newSched.remove)
-	return &newSched
+	go scheduleWorker(newSched.addOrUpdate, newSched.remove)
+	return newSched
 }
 
 // Will sleep/loop constantly, add/update/remove/execute jobs and finish when addOrUpdate channel closes
-func startScheduleWorker(addOrUpdate <-chan Job, remove <-chan int) {
+func scheduleWorker(addOrUpdate <-chan Job, remove <-chan uint) {
+	var jobData worker
+	for {
+		jobData.updateTimesList()
+		select {
+		case <-time.After(jobData.closestTime().Sub(time.Now())):
+			jobData.run()
+		case job, ok := <-addOrUpdate:
+			if !ok {
+				return
+			} else {
+				jobData.addUpdate(job)
+			}
+		case id := <-remove:
+			jobData.remove(id)
+		}
+	}
+}
 
+// internal type for the scheduler
+type jobTime struct {
+	id       uint
+	nextTime time.Time
+}
+
+type jobTimes []*jobTime
+
+// These are used to implement the sorting Interface
+func (s jobTimes) Len() int      { return len(s) }
+func (s jobTimes) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// Will sort by the Job run time
+type byTime struct{ jobTimes }
+
+func (s byTime) Less(i, j int) bool { return s.jobTimes[i].nextTime.Before(s.jobTimes[j].nextTime) }
+
+type worker struct {
+	jobMap    map[uint]Job
+	timesList jobTimes
+}
+
+func (w *worker) addUpdate(job Job) {
+	w.jobMap[job.GetID()] = job
+}
+
+func (w *worker) remove(id uint) {
+	delete(w.jobMap, id)
+}
+
+func (w *worker) updateTimesList() {
+	var now = roundDownToSecond(time.Now())
+	w.timesList = make(jobTimes, 0, len(w.jobMap))
+	for _, job := range w.jobMap {
+		w.timesList = append(w.timesList, &jobTime{job.GetID(), job.NextRunTime(now)})
+	}
+	sort.Sort(byTime{w.timesList})
+}
+
+func (w *worker) closestTime() time.Time {
+	if len(w.timesList) == 0 {
+		return time.Now().AddDate(0, 0, 1)
+	}
+	return w.timesList[0].nextTime
+}
+
+func (w *worker) run() {
+	for _, job := range w.timesList {
+		if job.nextTime.Before(time.Now()) {
+			go w.jobMap[job.id].Run()
+		} else {
+			break
+		}
+	}
+}
+
+func roundDownToSecond(t time.Time) time.Time {
+	return t.Add(-(time.Duration(t.Nanosecond()) * time.Nanosecond))
 }

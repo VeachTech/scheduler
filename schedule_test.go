@@ -28,7 +28,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package scheduler
 
 import (
+	"fmt"
 	"testing"
+
+	"time"
 )
 
 func TestID(t *testing.T) {
@@ -54,25 +57,30 @@ var cronTests = []struct {
 	time    int
 	result  bool
 }{
-	{"*/2", 0, true},
-	{"*/2", 6, true},
-	{"*/3", 3, true},
-	{"*/3", 6, true},
 	{"1-3", 2, true},
 	{"1-3", 3, true},
-	{"1-3/1", 2, true},
-	{"0-5/3", 3, true},
-	{"0-5/3", 6, false},
+	{"1-3", 4, false},
+	{"1-3,4", 4, true},
 	{"1,3,4", 3, true},
 	{"1,3,4", 5, false},
+	{"1-3,5-8", 4, false},
+	{"1-3/2", 3, true},
+	{"1-3/2", 2, false},
 }
 
 func TestisMatch(t *testing.T) {
 	for _, ct := range cronTests {
-		check := hourMinuteSecondIsMatch(ct.cronStr, ct.time)
+		check := timeMatchesCron(ct.cronStr, ct.time)
 		if check != ct.result {
 			t.Errorf("%s with time %d, expected result %v, got result %v",
 				ct.cronStr, ct.time, ct.result, check)
 		}
 	}
+}
+
+func TestCronTime(t *testing.T) {
+	cron, _ := NewCron("* 30 2 * * 1")
+	fmt.Println(cron)
+	nextTime := cron.NextRunTime(time.Now())
+	fmt.Println(nextTime)
 }
