@@ -36,6 +36,11 @@ import (
 // method of the Job interface
 type ID uint
 
+// Matches the GetID function of the Job interface, all it does is return the underlying uint
+func (id ID) GetID() uint {
+	return uint(id)
+}
+
 // Any object that implements this interface can be added to the scheduler
 type Job interface {
 	NextRunTime(time.Time) time.Time
@@ -50,27 +55,32 @@ type Scheduler struct {
 	remove      chan uint
 }
 
-// Matches the GetID function of the Job interface, all it does is return the underlying uint
-func (id *ID) GetID() uint {
-	return uint(*id)
-}
-
 // You MUST use this to create a new Scheduler
-func New(buffered bool) *Scheduler {
+func New(buffered int) *Scheduler {
 	var newSched *Scheduler
-	if buffered {
-		newSched = &Scheduler{addOrUpdate: make(chan Job, 10), remove: make(chan uint, 5)}
-	} else {
-		newSched = &Scheduler{addOrUpdate: make(chan Job), remove: make(chan uint)}
-	}
+	newSched = &Scheduler{addOrUpdate: make(chan Job, buffered), remove: make(chan uint, buffered)}
 	// Create worker
 	go scheduleWorker(newSched.addOrUpdate, newSched.remove)
 	return newSched
 }
 
+func (s *Scheduler) AddUpdateJob(job Job) {
+	s.addOrUpdate <- job
+}
+
+func (s *Scheduler) RemoveJob(id uint) {
+	s.remove <- id
+}
+
+func (s *Scheduler) ShutDown() {
+	close(s.addOrUpdate)
+	close(s.remove)
+}
+
 // Will sleep/loop constantly, add/update/remove/execute jobs and finish when addOrUpdate channel closes
 func scheduleWorker(addOrUpdate <-chan Job, remove <-chan uint) {
 	var jobData worker
+	jobData.jobMap = make(map[uint]Job)
 	for {
 		jobData.updateTimesList()
 		select {
@@ -79,9 +89,8 @@ func scheduleWorker(addOrUpdate <-chan Job, remove <-chan uint) {
 		case job, ok := <-addOrUpdate:
 			if !ok {
 				return
-			} else {
-				jobData.addUpdate(job)
 			}
+			jobData.addUpdate(job)
 		case id := <-remove:
 			jobData.remove(id)
 		}
@@ -119,7 +128,7 @@ func (w *worker) remove(id uint) {
 }
 
 func (w *worker) updateTimesList() {
-	var now = roundDownToSecond(time.Now())
+	var now = roundDownToSecond(time.Now().Add(time.Second))
 	w.timesList = make(jobTimes, 0, len(w.jobMap))
 	for _, job := range w.jobMap {
 		w.timesList = append(w.timesList, &jobTime{job.GetID(), job.NextRunTime(now)})

@@ -50,12 +50,12 @@ type CronTime struct {
 }
 
 // Returns a CronTime object that matches every time
-func NewCron(cronString string) (*CronTime, error) {
+func NewCron(cronString string) (CronTime, error) {
 	fields := strings.Fields(cronString)
 	if len(fields) != 6 {
-		return nil, errors.New("Cron String must have 6 fields")
+		return CronTime{}, errors.New("Cron String must have 6 fields")
 	}
-	return &CronTime{fields[0], fields[1], fields[2], cronDayHelper(fields[3]), cronMonthHelper(fields[4]), cronDOWHelper(fields[5])}, nil
+	return CronTime{fields[0], fields[1], fields[2], cronDayHelper(fields[3]), cronMonthHelper(fields[4]), cronDOWHelper(fields[5])}, nil
 }
 
 func cronDayHelper(cronString string) string {
@@ -98,7 +98,7 @@ func cronDOWHelper(cronString string) string {
 }
 
 // Calculates the next time that matches the crontab after the start time
-func (CFormat *CronTime) NextRunTime(start time.Time) time.Time {
+func (CFormat CronTime) NextRunTime(start time.Time) time.Time {
 	nextTime := start
 	// Calculate next Cron Date
 	for {

@@ -84,3 +84,7 @@ func TestCronTime(t *testing.T) {
 	nextTime := cron.NextRunTime(time.Now())
 	fmt.Println(nextTime)
 }
+
+func TestRoundDown(t *testing.T) {
+	fmt.Println(roundDownToSecond(time.Now()))
+}
